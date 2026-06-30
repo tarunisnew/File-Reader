@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Scanner</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 40px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: white;
+            padding: 20px 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .header-wrapper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        h2 {
+            color: #1976d2;
+            margin: 0;
+        }
+        .controls-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .lang-selector, .export-btn {
+            padding: 8px 14px;
+            font-size: 0.9em;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .export-btn {
+            background-color: #d32f2f;
+            color: white;
+            border: 1px solid #d32f2f;
+        }
+        .export-btn:hover {
+            background-color: #b71c1c;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            vertical-align: top;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        .status-success { color: green; font-weight: bold; }
+        .status-error { color: red; font-weight: bold; }
+
+        /* Diagram Gallery Styling */
+        .diagram-section {
+            margin-top: 20px;
+            border-top: 2px dashed #ccc;
+            padding-top: 15px;
+        }
+        .diagram-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .diagram-card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .diagram-card img {
+            max-width: 100%;
+            max-height: 180px;
+            object-fit: contain;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-wrapper">
+        <h2>Dashboard</h2>
+
+        <div class="upload-section" style="display: flex; gap: 10px; align-items: center; background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px dashed #ccc;">
+            <input type="file" id="pdfUploader" multiple accept=".pdf" style="font-size: 0.9em;">
+            <button class="export-btn" style="background-color: #1976d2; border-color: #1976d2;" onclick="uploadFiles()">Scan & Extract</button>
+        </div>
+
+        <div class="controls-group">
+            <select id="exportFormatSelect" class="lang-selector">
+                <option value="csv">CSV (Excel)</option>
+                <option value="json">JSON Raw Data</option>
+                <option value="txt">TXT Document (Word)</option>
+            </select>
+            <button class="export-btn" onclick="triggerExport()">Export Data</button>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 30%;">File Name</th>
+                <th style="width: 15%;">Status</th>
+                <th style="width: 55%;">Document Content</th>
+            </tr>
+        </thead>
+        <tbody id="metadataTableBody">
+            </tbody>
+    </table>
+</div>
+
+<div id="contentModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background: white; width: 75%; height: 85%; padding: 20px; border-radius: 8px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
+
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px;">
+            <h3 id="modalFileName" style="margin: 0; color: #1976d2;">Document Analysis</h3>
+
+            <div style="display: flex; gap: 10px;">
+                <button onclick="printExtractedText()" style="background: #37474f; color: white; border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">Print Transcript</button>
+                <button onclick="closeModal()" style="background: #e53935; color: white; border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">Close</button>
+            </div>
+        </div>
+
+        <div style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; padding-right: 5px;">
+            <div>
+                <h4 style="margin: 0 0 8px 0; color: #37474f;">Extracted Text / Transcript:</h4>
+                <div style="background: #f9f9f9; padding: 15px; border-radius: 4px; border: 1px solid #ddd; white-space: pre-wrap; font-family: monospace; font-size: 0.95em;" id="modalTextContent"></div>
+            </div>
+
+            <div id="modalDiagramSection" class="diagram-section">
+                <h4 style="margin: 0 0 5px 0; color: #37474f;">Extracted Document Diagrams / Figures:</h4>
+                <div id="modalDiagramGallery" class="diagram-gallery"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let cachedData = [];
+    let currentViewingIndex = -1;
+
+    async function uploadFiles() {
+        const fileInput = document.getElementById('pdfUploader');
+        if (fileInput.files.length === 0) {
+            alert("Please select at least one PDF file.");
+            return;
+        }
+
+        const tableBody = document.getElementById('metadataTableBody');
+        tableBody.innerHTML = "<tr><td colspan='3' style='text-align:center; padding:20px;'><strong>Extracting Content & Diagrams... Please wait.</strong></td></tr>";
+
+        const formData = new FormData();
+        for (let i = 0; i < fileInput.files.length; i++) {
+            formData.append("files", fileInput.files[i]);
+        }
+
+        try {
+            const response = await fetch("http://127.0.0.1:8000/api/extract", {
+                method: "POST",
+                body: formData
+            });
+
+            if (!response.ok) throw new Error("Server error occurred.");
+
+            cachedData = await response.json();
+            renderTable();
+
+        } catch (error) {
+            console.error('Error:', error);
+            tableBody.innerHTML = `<tr><td colspan='3' style='color:red;'>Error connecting to API. Ensure Uvicorn is active.</td></tr>`;
+        }
+    }
+
+    function renderTable() {
+        const tableBody = document.getElementById('metadataTableBody');
+        tableBody.innerHTML = "";
+
+        cachedData.forEach((item, index) => {
+            const row = document.createElement('tr');
+
+            const nameCell = document.createElement('td');
+            nameCell.innerHTML = `<strong>${item.file_name}</strong>`;
+            row.appendChild(nameCell);
+
+            const statusCell = document.createElement('td');
+            const isSuccess = item.status === 'Success';
+            statusCell.innerText = isSuccess ? "Success" : "Error";
+            statusCell.className = isSuccess ? 'status-success' : 'status-error';
+            row.appendChild(statusCell);
+
+            const previewCell = document.createElement('td');
+            if (isSuccess) {
+                previewCell.innerHTML = `
+                    <button type="button" style="background-color: #2e7d32; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold;" onclick="viewFullContent(${index})">
+                        View Results (${item.diagrams ? item.diagrams.length : 0} Diagrams Found)
+                    </button>
+                `;
+            } else {
+                previewCell.innerHTML = `<em>N/A</em>`;
+            }
+            row.appendChild(previewCell);
+
+            tableBody.appendChild(row);
+        });
+    }
+
+    function viewFullContent(index) {
+        currentViewingIndex = index;
+        const record = cachedData[index];
+        document.getElementById('modalFileName').innerText = `File Analysis: ${record.file_name}`;
+        document.getElementById('modalTextContent').innerText = record.full_content;
+
+        const gallery = document.getElementById('modalDiagramGallery');
+        const section = document.getElementById('modalDiagramSection');
+        gallery.innerHTML = "";
+
+        if (record.diagrams && record.diagrams.length > 0) {
+            section.style.display = 'block';
+            record.diagrams.forEach((dataUrl, i) => {
+                const card = document.createElement('div');
+                card.className = 'diagram-card';
+                card.innerHTML = `<img src="${dataUrl}" alt="Extracted Figure ${i+1}"><div style="font-size:0.8em; color:#666; margin-top:5px;">Figure ${i+1}</div>`;
+                gallery.appendChild(card);
+            });
+        } else {
+            section.style.display = 'none';
+        }
+
+        document.getElementById('contentModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('contentModal').style.display = 'none';
+        currentViewingIndex = -1;
+    }
+
+    window.onclick = function(event) {
+        const modal = document.getElementById('contentModal');
+        if (event.target === modal) {
+            closeModal();
+        }
+    }
+
+    function printExtractedText() {
+        if (currentViewingIndex === -1) return;
+
+        const record = cachedData[currentViewingIndex];
+        const printWindow = window.open('', '_blank');
+
+        printWindow.document(`
+            <html>
+            <head>
+                <title>Print Transcript - ${record.file_name}</title>
+                <style>
+                    body { font-family: 'Courier New', Courier, monospace; padding: 40px; color: black; }
+                    h2 { border-bottom: 2px solid black; padding-bottom: 10px; }
+                    .content { white-space: pre-wrap; margin-top: 20px; line-height: 1.5; }
+                </style>
+            </head>
+            <body>
+                <h2>Document Transcript: ${record.file_name}</h2>
+                <div class="content">${record.full_content}</div>
+            </body>
+            </html>
+        `);
+
+        printWindow.document.close();
+
+        setTimeout(() => {
+            printWindow.print();
+        }, 250);
+    }
+
+    function triggerExport() {
+        const format = document.getElementById('exportFormatSelect').value;
+        if (!cachedData || cachedData.length === 0) {
+            alert("No data available to export.");
+            return;
+        }
+
+        let blobContent = "";
+        let mimeType = "text/plain";
+        let fileName = `content_export_${new Date().toISOString().slice(0,10)}`;
+
+        if (format === 'json') {
+            blobContent = JSON.stringify(cachedData, null, 4);
+            mimeType = "application/json";
+            fileName += ".json";
+        } else {
+            alert("Use JSON export format to include raw diagram data. CSV/TXT export has been disabled for diagram compatibility.");
+            return;
+        }
+
+        const blob = new Blob([blobContent], { type: mimeType });
+        const link = document.createElement("a");
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    }
+</script>
+
+</body>
+</html>
